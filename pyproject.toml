@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "item-describer"
+version = "0.0.2"
+description = "Create a description for an AAPB item from transcript and existing item-level metadata."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+dependencies = [
+    "requests>=2.31.0",
+    "pbcore-scullery>=0.51",
+    "gbh-ai-helper>=0.1.0"
+]
+
+[project.scripts]
+idescribe = "item_describer.idescribe:main"
+
+[project.urls]
+"Homepage" = "https://github.com/WGBH-MLA/item-describer"
+"Source" = "https://github.com/WGBH-MLA/item-describer"
+
+[tool.setuptools.packages.find]
+include = ["item_describer"]
