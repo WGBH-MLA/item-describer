@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "item-describer"
-version = "0.0.3"
-description = "Create a description for an AAPB item from transcript and existing item-level metadata."
+version = "0.0.4"
+description = "Create descriptive metadata for an AAPB item from transcript and existing item-level metadata."
 readme = "README.md"
 requires-python = ">=3.9"
 license = {file = "LICENSE"}

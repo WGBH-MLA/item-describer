@@ -9,7 +9,6 @@ Writes the description to stdout
 
 """
 import argparse
-import json
 import io
 
 import requests
@@ -17,34 +16,44 @@ import requests
 import pbcore_scullery as pb
 import gbh_ai_helper as ai
 
-from . import prompt_content as pc
+from . import reformat 
+from .prompt_content import pc
 
 
-def form_system_prompt ():
+def form_system_prompt ( dtype:str="description" ):
     """
     Formulate the system prompt.
     (For now, this returns a fixed string.)
     """
-    system_prompt = pc.system_prompt
+    system_prompt = pc[dtype]["system_prompt"].strip()
 
     return system_prompt
 
 
-def form_user_prompt( metadata, transcript ):
+def form_user_prompt( metadata:str, 
+                      transcript:str,
+                      dtype:str="description" ):
     """
     Formulate the user prompt from metadata and the transcript.
     """
 
-    metadata = json.dumps(metadata, indent=2)
+    p = ""
 
-    p = pc.user_prompt_instr
-    p += "\n"
-    p += pc.metadata_intro
+    p += pc[dtype]["user_prompt_instr"].strip()
+    p += "\n\n"
+
+    if pc[dtype]["options"]:
+        p += pc[dtype]["options_intro"].strip()
+        p += "\n"
+        p += pc[dtype]["options"].strip()
+        p += "\n\n"
+
+    p += pc[dtype]["metadata_intro"].strip()
     p += "\n```\n"
     p += metadata
-    p += "\n```\n"
-    p += pc.transcript_intro
-    p += '\n"""\n'
+    p += "\n```\n\n"
+    p += pc[dtype]["transcript_intro"].strip()
+    p += '\n\n"""\n'
     p += transcript
     p += '\n"""\n'
 
@@ -69,7 +78,7 @@ def get_raw_metadata( aapbid:str ) -> dict:
     return assttbl[0]
 
 
-def massage_metadata( asst:dict ) -> dict:
+def massage_metadata( asst:dict, dtype="description" ) -> dict:
 
     asst["item_duration"] = asst.get("proxy_duration","")
     asst["item_date"] = asst.get("single_date","")
@@ -99,30 +108,22 @@ def massage_metadata( asst:dict ) -> dict:
     return m
 
 
-def aajson2txt( jstr:str ) -> str:
-
-    td = json.loads(jstr)
-    tt = ""
-    for part in td["parts"]:
-        tt += part["text"] + "\n"
-    
-    return tt
-
-
 def get_transcript( url:str ) -> str:
 
     # get the transcript JSON
     response = requests.get(url)
 
     if url.find(".json") == -1:
-        text = response.content
+        text = response.content.strip()
     else:
-        text = aajson2txt(response.content)
+        text = reformat.aajson2txt(response.content)
 
     return text
 
 
-def idescribe( aapbid:str, max_tokens=200 ) -> str:
+def idescribe( aapbid:str, 
+               dtype:str="description",
+               max_tokens:int=200 ) -> str:
     """
     Takes an AAPB ID as input. 
     Returns a short description of the item.
@@ -130,33 +131,37 @@ def idescribe( aapbid:str, max_tokens=200 ) -> str:
     """
 
     raw_metadata = get_raw_metadata( aapbid )
-    metadata = massage_metadata( raw_metadata )
+    metadata = massage_metadata( raw_metadata, dtype )
+    metadata_str = reformat.format_metadata( metadata )
 
     transcript_url = raw_metadata.get("transcript_url","")
 
     if not transcript_url.strip():
         print("\nNO TRANSCRIPT AVAILABLE.\nWILL NOT ATTEMPT DESCRIPTION.\n")
-    
+        description = ""
     else:
         transcript_text = get_transcript( transcript_url )
-        user_prompt = form_user_prompt( metadata, transcript_text )
-        system_prompt = form_system_prompt()
+        user_prompt = form_user_prompt( metadata_str, transcript_text, dtype )
+        system_prompt = form_system_prompt( dtype )
 
-        description = ai.one_completion( user_prompt,
-                                         system_prompt,
-                                         max_tokens=max_tokens )
-    return description
+        output = ai.one_completion( user_prompt,
+                                    system_prompt,
+                                    max_tokens=max_tokens )
+    return output
+
 
 
 def main():
 
     parser = parser = argparse.ArgumentParser(
         prog='idescribe',
-        description='Creates a description for an AAPB ID',
+        description='Generates descirptive metadata for an AAPB item',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("aapbid", metavar="ID",
         help="The AAPB ID for the item you wish to describe.")
+    parser.add_argument("-t", "--type", metavar="TYPE", nargs="?", default="description",
+        help="The type of metadata you want: 'description' or 'topics'")
 
     args = parser.parse_args()
 
@@ -165,7 +170,16 @@ def main():
     if not args.aapbid:
         pass
 
-    description = idescribe(args.aapbid)
+    if args.type:
+        if args.type in ["description", "topics"]:
+            dtype = args.type
+        else:
+            print("Warning: Invalid type specified.  Run with `-h` for help.")
+            dtype = "desription"
+    else:
+        dtype = "desription"
+
+    description = idescribe(args.aapbid, dtype)
 
     print()
     print(description)
