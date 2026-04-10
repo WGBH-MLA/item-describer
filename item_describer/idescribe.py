@@ -10,6 +10,7 @@ Writes the description to stdout
 """
 import argparse
 import io
+import os
 
 import requests
 
@@ -148,7 +149,8 @@ def validate_output( raw:str,
 def idescribe( aapbid:str, 
                dtype:str = "description",
                verbose:bool = False,
-               max_tokens:int = 200 ) -> str:
+               max_tokens:int = 200,
+               deployment_alias = ai.DEFAULT_DEPLOYMENT_ALIAS ) -> str:
     """
     Calls an LLM to generate descriptive metadata for an AAPB item, based
     on the current metadata and the transcript.
@@ -166,11 +168,14 @@ def idescribe( aapbid:str,
     transcript_url = raw_metadata.get("transcript_url","")
 
     if verbose:
-        print(f"\nAAPB ID: {aapbid}")
-        print("\nCurrent metadata used:")
+        print(f"\n* Model deployment alias: {deployment_alias}")
+        print(f"* Model deployment name: {os.getenv(deployment_alias)}")
+        print(f"* AAPB ID: {aapbid}")
+        print("* Current metadata used:")
         print(metadata_str)
-        print("\nTranscript used:")
+        print("* Transcript used:")
         print(transcript_url)
+        print(f"* Ouput metadata type: '{dtype}'")
         print("\nOUTPUT:")
 
     if not transcript_url.strip():
@@ -183,7 +188,8 @@ def idescribe( aapbid:str,
 
         raw_output = ai.one_completion( user_prompt,
                                         system_prompt,
-                                        max_tokens=max_tokens )
+                                        max_tokens=max_tokens,
+                                        deployment_alias=deployment_alias )
         valid_output = validate_output( raw_output, dtype )
 
     return valid_output, raw_output
@@ -201,6 +207,8 @@ def main():
         help="The AAPB ID for the item you wish to describe.")
     parser.add_argument("-t", "--type", metavar="TYPE", nargs="?", default="description",
         help="The type of descriptive metadata you want: 'description' or 'topics'")
+    parser.add_argument("-d", "--deployment", metavar="TYPE", nargs="?", default=ai.DEFAULT_DEPLOYMENT_ALIAS,
+        help="The .gbhai dotfile alias of the model deployment you want to use")        
     parser.add_argument("-v", "--verbose", action="store_true",
         help="Produce verbose/diagnostic output.")
 
@@ -218,11 +226,22 @@ def main():
             dtype = args.type
         else:
             print("Warning: Invalid type specified.  Run with `-h` for help.")
-            dtype = "desription"
+            dtype = "description"
     else:
-        dtype = "desription"
+        dtype = "description"
 
-    valid_output, raw_output = idescribe(aapbid, dtype, verbose=args.verbose)
+
+    deployment_alias = args.deployment
+    deployment_name = os.getenv(deployment_alias)
+    if not deployment_name:
+        print("Warning:  Model deployment alias didn't correspond to a deployment name.")
+        print(f"Will use default deployment alias: {ai.DEFAULT_DEPLOYMENT_ALIAS}")
+        deployment_alias = ai.DEFAULT_DEPLOYMENT_ALIAS
+
+    valid_output, raw_output = idescribe( aapbid, 
+                                          dtype, 
+                                          deployment_alias=deployment_alias,
+                                          verbose=args.verbose)
 
     if valid_output:
         print()

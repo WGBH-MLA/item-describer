@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "item-describer"
-version = "0.0.5"
+version = "0.1.0"
 description = "Create descriptive metadata for an AAPB item from transcript and existing item-level metadata."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,7 +12,7 @@ license = {file = "LICENSE"}
 dependencies = [
     "requests>=2.31.0",
     "pbcore-scullery>=0.51",
-    "gbh-ai-helper>=0.1.0"
+    "gbh-ai-helper>=0.1.1"
 ]
 
 [project.scripts]
