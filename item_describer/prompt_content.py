@@ -61,10 +61,10 @@ pc["topics"] = {}
 
 pc["topics"]["system_prompt"] = general_system_prompt
 pc["topics"]["user_prompt_instr"] = """
-Describe this item with one or more topics from list below.  
+Describe this item with one or more topics from the list below.  
 Aim to identify between one and five of the most relevant topics, depending on the diversity of content in the program.
 Without any introduction or explanation, output the topics you selected, with one topic per line.
-If cannot assign topics to the item, simply output "NONE" and nothing else.
+If you cannot assign topics to the item, simply output "NONE" and nothing else.
 """
 pc["topics"]["options_intro"] = """
 Here is a list of topics from which you may select:
