@@ -170,13 +170,16 @@ def idescribe( aapbid:str,
     if verbose:
         print(f"\n* Model deployment alias: {deployment_alias}")
         print(f"* Model deployment name: {os.getenv(deployment_alias)}")
-        print(f"* AAPB ID: {aapbid}")
-        print("* Current metadata used:")
+        print(f"\n* Ouput metadata type: '{dtype}'")
+        print(f"\n* PROMPT COMPONENTS: ")
+        for k in ["system_prompt", "user_prompt_instr", "options", "metadata_intro", "transcript_intro"]:
+            print(f"\n* {k}:")
+            print(str(pc[dtype][k]).strip())
+        print(f"\n* AAPB ID: {aapbid}")
+        print("\n* Current metadata used:")
         print(metadata_str)
-        print("* Transcript used:")
+        print("\n* Transcript used:")
         print(transcript_url)
-        print(f"* Ouput metadata type: '{dtype}'")
-        print("\nOUTPUT:")
 
     if not transcript_url.strip():
         print("\nNO TRANSCRIPT AVAILABLE.  WILL NOT ATTEMPT DESCRIPTION.\n")
@@ -242,6 +245,9 @@ def main():
                                           dtype, 
                                           deployment_alias=deployment_alias,
                                           verbose=args.verbose)
+
+    if args.verbose:
+        print("\n* OUTPUT:")
 
     if valid_output:
         print()
