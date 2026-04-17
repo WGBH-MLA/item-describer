@@ -168,11 +168,13 @@ def idescribe( aapbid:str,
     """
     Calls an LLM to generate descriptive metadata for an AAPB item, based
     on the current metadata and the transcript.
-    Takes an AAPB ID as input. 
-    Returns an order pair as output.
-    First item is validated output, which will be `None` if LLM ouput was 
-    not valid.
-    Second item is the raw LLM output.
+
+    As input, takes an AAPB ID. 
+
+    As output, returns an ordered pair:
+      - First item is validated output, which will be `None` if LLM ouput was 
+        not valid.
+      - Second item is the raw LLM output.
     """
 
     if verbose:
@@ -267,6 +269,7 @@ def main():
         help="The ~/.gbhai alias of the model deployment you want to use")        
 
     args = parser.parse_args()
+    print()
 
     # check for valid identifier
     # To do: Add validation
@@ -279,7 +282,7 @@ def main():
         if args.type in ["description", "topics"]:
             dtype = args.type
         else:
-            print("Warning: Invalid type specified.  Run with `-h` for help.")
+            print("\nWarning: Invalid type specified.  Run with `-h` for help.")
             dtype = "description"
     else:
         dtype = "description"
@@ -289,20 +292,20 @@ def main():
             with open(args.custom_system_prompt) as f:
                 PC[dtype]["system_prompt"] = f.read()
         else:
-            print("Warning: Invalid path to custom system prompt.  Will use default system prompt.")
+            print("\nWarning: Invalid path to custom system prompt.  Will use default system prompt.")
 
     if args.custom_instruction:
         if os.path.isfile(args.custom_instruction):
             with open(args.custom_instruction) as f:
                 PC[dtype]["user_prompt_instr"] = f.read()
         else:
-            print("Warning: Invalid path to custom instructions.  Will use default instructions.")
+            print("\nWarning: Invalid path to custom instructions.  Will use default instructions.")
 
     if args.max_tokens:
         try:
             max_tokens = int(args.max_tokens)
         except ValueError as e:
-            print("Warning: Invalid value for max tokens.")
+            print("\nWarning: Invalid value for max tokens.")
             print(f"  ValueError: {e}")
             print(f"Will use default value of {MAX_TOKENS_DEFAULT}.")
             max_tokens = MAX_TOKENS_DEFAULT
@@ -311,7 +314,7 @@ def main():
     deployment_alias = args.deployment
     deployment_name = os.getenv(deployment_alias)
     if not deployment_name:
-        print("Warning:  Model deployment alias didn't correspond to a deployment name.")
+        print("\nWarning:  Model deployment alias didn't correspond to a deployment name.")
         print(f"Will use default deployment alias: {ai.DEFAULT_DEPLOYMENT_ALIAS}")
         deployment_alias = ai.DEFAULT_DEPLOYMENT_ALIAS
 
@@ -323,8 +326,8 @@ def main():
 
     if args.verbose:
         print("\n*** OUTPUT APPEARS BELOW. ***")
-        
-    print()
+        print()
+    
     if valid_output:
         print(valid_output)
     elif raw_output:
