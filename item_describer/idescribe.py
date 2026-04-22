@@ -30,6 +30,7 @@ __version__ = importlib.metadata.version("item-describer")
 PC = pc.copy()
 
 MAX_TOKENS_DEFAULT = 200
+DEFAULT_TEMPERATURE = 0.2
 
 ############################################################################
 
@@ -145,7 +146,9 @@ def get_transcript( url:str ) -> str:
 def validate_output( raw:str,
                      dtype:str ) -> (str,str):
 
-    if raw.strip().lower() == 'none':
+    if not raw:
+        valid_output = None
+    elif raw.strip().lower() == 'none':
         valid_output = None
     elif PC[dtype]["options"]:
         valid_output = raw.strip()
@@ -164,6 +167,7 @@ def idescribe( aapbid:str,
                dtype:str = "description",
                verbose:bool = False,
                max_tokens:int = MAX_TOKENS_DEFAULT,
+               temperature:float = DEFAULT_TEMPERATURE,
                deployment_alias = ai.DEFAULT_DEPLOYMENT_ALIAS ) -> str:
     """
     Calls an LLM to generate descriptive metadata for an AAPB item, based
@@ -182,6 +186,7 @@ def idescribe( aapbid:str,
         print(f"* Model deployment name: {os.getenv(deployment_alias)}")
         print(f"\n* Ouput metadata type: '{dtype}'")
         print(f"* Maximum output tokens: {max_tokens}")
+        print(f"* Model temperature: {temperature}")
         print()
 
     raw_metadata = get_raw_metadata( aapbid )
@@ -226,6 +231,7 @@ def idescribe( aapbid:str,
         raw_output = ai.one_completion( user_prompt,
                                         system_prompt,
                                         max_tokens=max_tokens,
+                                        temperature=temperature,
                                         deployment_alias=deployment_alias )
         
         valid_output = validate_output( raw_output, dtype )
