@@ -47,7 +47,8 @@ def form_system_prompt ( dtype:str="description" ):
 
 def form_user_prompt( metadata:str, 
                       transcript:str,
-                      dtype:str="description" ):
+                      dtype:str="description",
+                      use_metadata:bool=True ):
     """
     Formulate the user prompt from metadata and the transcript.
     """
@@ -64,10 +65,12 @@ def form_user_prompt( metadata:str,
         p += PC[dtype]["options_str"].strip()
         p += "\n\n"
 
-    p += PC[dtype]["metadata_intro"].strip()
-    p += "\n```\n"
-    p += metadata
-    p += "\n```\n\n"
+    if use_metadata:
+        p += PC[dtype]["metadata_intro"].strip()
+        p += "\n```\n"
+        p += metadata
+        p += "\n```\n\n"
+
     p += PC[dtype]["transcript_intro"].strip()
     p += '\n\n"""\n'
     p += transcript
@@ -165,6 +168,7 @@ def validate_output( raw:str,
 
 def idescribe( aapbid:str, 
                dtype:str = "description",
+               use_metadata:bool = True,
                verbose:bool = False,
                max_tokens:int = MAX_TOKENS_DEFAULT,
                temperature:float = DEFAULT_TEMPERATURE,
@@ -184,7 +188,7 @@ def idescribe( aapbid:str,
     if verbose:
         print(f"\n* Model deployment alias: {deployment_alias}")
         print(f"* Model deployment name: {os.getenv(deployment_alias)}")
-        print(f"\n* Ouput metadata type: '{dtype}'")
+        print(f"\n* Output metadata type: '{dtype}'")
         print(f"* Maximum output tokens: {max_tokens}")
         print(f"* Model temperature: {temperature}")
         print()
@@ -224,7 +228,8 @@ def idescribe( aapbid:str,
 
         user_prompt = form_user_prompt( metadata_str, 
                                         transcript_text, 
-                                        dtype )
+                                        dtype,
+                                        use_metadata=use_metadata )
         
         system_prompt = form_system_prompt( dtype )
 
@@ -263,6 +268,8 @@ def main():
         help="The AAPB ID for the item you wish to describe.")
     parser.add_argument("-v", "--verbose", action="store_true",
         help="Produce verbose/diagnostic output.")
+    parser.add_argument("-x", "--ignore-metadata", action="store_true",
+        help="Do not include existing metadata in the user prompt.")
     parser.add_argument("-t", "--type", metavar="TYPE", nargs="?", default="description",
         help="The type of descriptive metadata you want: 'description' or 'topics'")
     parser.add_argument("-s", "--custom-system-prompt", metavar="SYS", nargs="?", default=None,
@@ -326,6 +333,7 @@ def main():
 
     valid_output, raw_output = idescribe( aapbid, 
                                           dtype, 
+                                          use_metadata = not(args.ignore_metadata),
                                           max_tokens=max_tokens,
                                           deployment_alias=deployment_alias,
                                           verbose=args.verbose)
