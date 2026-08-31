@@ -32,6 +32,8 @@ PC = pc.copy()
 MAX_TOKENS_DEFAULT = 200
 DEFAULT_TEMPERATURE = 0.2
 
+#DEFAULT_DEPLOYMENT = ai.get_default_azure_deployment()
+
 ############################################################################
 
 def form_system_prompt ( dtype:str="description" ):
@@ -172,7 +174,8 @@ def idescribe( aapbid:str,
                verbose:bool = False,
                max_tokens:int = MAX_TOKENS_DEFAULT,
                temperature:float = DEFAULT_TEMPERATURE,
-               deployment_alias = ai.DEFAULT_DEPLOYMENT_ALIAS ) -> str:
+               provider:str = None,
+               model_ref:str = None ) -> str:
     """
     Calls an LLM to generate descriptive metadata for an AAPB item, based
     on the current metadata and the transcript.
@@ -185,12 +188,16 @@ def idescribe( aapbid:str,
       - Second item is the raw LLM output.
     """
 
+    model_id = ai.get_source_model(provider, model_ref)
+
     if verbose:
-        print(f"\n* Model deployment alias: {deployment_alias}")
-        print(f"* Model deployment name: {os.getenv(deployment_alias)}")
-        print(f"\n* Output metadata type: '{dtype}'")
-        print(f"* Maximum output tokens: {max_tokens}")
-        print(f"* Model temperature: {temperature}")
+        print(f"* Model API provider:       {provider}")
+        print(f"* User-specified model ref: {model_ref}")
+        print(f"* Canonical model ID:       {model_id}")
+        print()
+        print(f"* Output metadata type:     {dtype}")
+        print(f"* Maximum output tokens:    {max_tokens}")
+        print(f"* Model temperature:        {temperature}")
         print()
 
     raw_metadata = get_raw_metadata( aapbid )
@@ -233,16 +240,27 @@ def idescribe( aapbid:str,
         
         system_prompt = form_system_prompt( dtype )
 
+        # make the call to the model
         raw_output = ai.one_completion( user_prompt,
                                         system_prompt,
                                         max_tokens=max_tokens,
                                         temperature=temperature,
-                                        deployment_alias=deployment_alias )
-        
+                                        provider=provider,
+                                        model_ref=model_ref )        
+
         valid_output = validate_output( raw_output, dtype )
 
 
-    return valid_output, raw_output
+    output_payload = {
+        "valid_output": valid_output, 
+        "raw_output": raw_output,
+        "model_id": model_id,
+        "metadata_used": metadata_str,
+        "transcript_url_used": transcript_url,
+        "prompt_components": PC[dtype].copy()
+    }
+
+    return output_payload
 
 
 
@@ -252,8 +270,12 @@ def main():
 
     app_desc = f"AAPB Item Describer (version {__version__})\n"
     app_desc += "Generates descriptive metadata for an AAPB item using an LLM.\n\n"
-    app_desc += f"Default LLM deployment alias: {ai.DEFAULT_DEPLOYMENT_ALIAS}\n"
-    app_desc += f"Default LLM deployment name:  {os.getenv(ai.DEFAULT_DEPLOYMENT_ALIAS)}\n"
+    app_desc += f"Available LLM providers: {', '.join(ai.AVAILABLE_PROVIDERS)}\n"
+    app_desc += f"Default LLM provider: {ai.DEFAULT_PROVIDER}\n"
+    app_desc += f"Default Azure deployment: {ai.DEFAULT_AZURE_DEPLOYMENT}\n"
+    app_desc += f"Default Bedrock model: {ai.DEFAULT_BEDROCK_MODEL}\n"
+    #app_desc += f"Default LLM deployment alias: {ai.DEFAULT_DEPLOYMENT_ALIAS}\n"
+    #app_desc += f"Default LLM deployment name:  {os.getenv(ai.DEFAULT_DEPLOYMENT_ALIAS)}\n"
 
     class CustomFormatter(argparse.RawDescriptionHelpFormatter, 
                           argparse.ArgumentDefaultsHelpFormatter):
@@ -276,10 +298,12 @@ def main():
         help="The file path to a text file with a custom system prompt")
     parser.add_argument("-i", "--custom-instruction", metavar="INSTR", nargs="?", default=None,
         help="The file path to a text file with custom instructions for the prompt")
-    parser.add_argument("-m", "--max-tokens", metavar="MAX", nargs="?", default=MAX_TOKENS_DEFAULT,
+    parser.add_argument("-z", "--max-tokens", metavar="MAX", nargs="?", default=MAX_TOKENS_DEFAULT,
         help="The maximum number of tokens the LLM should produce as its output")
-    parser.add_argument("-d", "--deployment", metavar="DEPLOY", nargs="?", default=ai.DEFAULT_DEPLOYMENT_ALIAS,
-        help="The ~/.gbhai alias of the model deployment you want to use")        
+    parser.add_argument("-p", "--provider", metavar="PROVIDER", nargs="?", default=ai.DEFAULT_PROVIDER,
+        help="The provider of the model and API you wish to use")        
+    parser.add_argument("-m", "--model-ref", metavar="MODEL", nargs="?", default=None,
+        help="The name of the Azure model deployment or Bedrock model you wish to use.  (If omitted defaults to the provider default.)")        
 
     args = parser.parse_args()
     print()
@@ -323,33 +347,40 @@ def main():
             print(f"Will use default value of {MAX_TOKENS_DEFAULT}.")
             max_tokens = MAX_TOKENS_DEFAULT
 
-        
-    deployment_alias = args.deployment
-    deployment_name = os.getenv(deployment_alias)
-    if not deployment_name:
-        print("\nWarning:  Model deployment alias didn't correspond to a deployment name.")
-        print(f"Will use default deployment alias: {ai.DEFAULT_DEPLOYMENT_ALIAS}")
-        deployment_alias = ai.DEFAULT_DEPLOYMENT_ALIAS
+    provider = args.provider.strip().lower()
 
-    valid_output, raw_output = idescribe( aapbid, 
-                                          dtype, 
-                                          use_metadata = not(args.ignore_metadata),
-                                          max_tokens=max_tokens,
-                                          deployment_alias=deployment_alias,
-                                          verbose=args.verbose)
+    if args.model_ref:
+        model_ref = args.model_ref.strip()
+    else:
+        if provider == "azure":
+            model_ref = ai.DEFAULT_AZURE_DEPLOYMENT
+        elif provider == "bedrock":
+            model_ref = ai.DEFAULT_BEDROCK_MODEL
+        else:
+            print(f"Unknown provider '{provider}'. Supported providers: {', '.join(ai.AVAILABLE_PROVIDERS)}.")
+            return 1
+
+
+    output_payload = idescribe( aapbid, 
+                                dtype, 
+                                use_metadata = not(args.ignore_metadata),
+                                verbose=args.verbose,
+                                max_tokens=max_tokens,
+                                provider=provider,
+                                model_ref=model_ref ) 
 
     if args.verbose:
         print("\n*** OUTPUT APPEARS BELOW. ***")
         print()
     
-    if valid_output:
-        print(valid_output)
-    elif raw_output:
+    if output_payload["valid_output"]:
+        print(output_payload["valid_output"])
+    elif output_payload["raw_output"]:
         print("MODEL DID NOT PRODUCE VALID OUTPUT.")
         print("RAW MODEL OUTPUT:\n")
-        print(raw_output)
+        print(output_payload["raw_output"])
     else:
-        print("NO OUTPUT.")
+        print("MODEL PRODUCED NO OUTPUT.")
     print()
     
 
