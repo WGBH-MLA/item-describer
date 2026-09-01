@@ -9,29 +9,29 @@ Writes the description to stdout
 
 """
 import argparse
+import copy
 import io
 import os
 import sys
-import importlib.metadata
+from typing import Optional
 
 import requests
 
 import pbcore_scullery as pb
 import gbh_ai_helper as ai
 
+from . import __version__
 from . import reformat 
 from .prompt_content import pc
-
-# get version number from `pyproject.toml` file
-__version__ = importlib.metadata.version("item-describer")
 
 
 # Global prompt data structure
 # (Can be changed by functions below.)
-PC = pc.copy()
+PC = copy.deepcopy(pc)
 
 MAX_TOKENS_DEFAULT = 200
 DEFAULT_TEMPERATURE = 0.2
+DEFAULT_HTTP_TIMEOUT = 30
 
 #DEFAULT_DEPLOYMENT = ai.get_default_azure_deployment()
 
@@ -89,7 +89,11 @@ def get_raw_metadata( aapbid:str ) -> dict:
     pbcore_url += ".pbcore"
 
     # get the PBCore XML file
-    response = requests.get(pbcore_url)
+    try:
+        response = requests.get(pbcore_url, timeout=DEFAULT_HTTP_TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f"Failed to fetch PBCore metadata for AAPB ID '{aapbid}': {e}") from e
 
     # create a filepath like object for it
     fio = io.BytesIO(response.content)
@@ -139,7 +143,11 @@ def massage_metadata( asst:dict, dtype="description" ) -> dict:
 def get_transcript( url:str ) -> str:
 
     # get the transcript JSON
-    response = requests.get(url)
+    try:
+        response = requests.get(url, timeout=DEFAULT_HTTP_TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f"Failed to fetch transcript from '{url}': {e}") from e
 
     if url.find(".json") == -1:
         text = response.text.strip()
@@ -150,22 +158,25 @@ def get_transcript( url:str ) -> str:
 
 
 def validate_output( raw:str,
-                     dtype:str ) -> (str,str):
+                     dtype:str ) -> Optional[str]:
 
     if not raw:
-        valid_output = None
-    elif raw.strip().lower() == 'none':
-        valid_output = None
-    elif PC[dtype]["options"]:
-        valid_output = raw.strip()
-        out_list = [ t.strip() for t in raw.strip().split('\n') ]
+        return None
+
+    raw_clean = raw.strip()
+    if not raw_clean or raw_clean.lower() == 'none':
+        return None
+
+    if PC[dtype]["options"]:
+        out_list = [ t.strip() for t in raw_clean.split('\n') if t.strip() ]
+        if not out_list:
+            return None
         for t in out_list:
             if t not in PC[dtype]["options"]:
-                valid_output = None
+                return None
+        return "\n".join(out_list)
     else:
-        valid_output = raw.strip()
-    
-    return valid_output
+        return raw_clean
         
 
 
@@ -281,10 +292,11 @@ def main():
 
     # check for valid identifier
     # To do: Add validation
-    if args.aapbid:
-        aapbid = args.aapbid
+    if args.aapbid and args.aapbid.strip():
+        aapbid = args.aapbid.strip()
     else:
-        return None
+        print("Error: An AAPB ID must be provided.")
+        return 1
 
     if args.type:
         if args.type in ["description", "topics"]:
@@ -339,9 +351,10 @@ def main():
                             dtype, 
                             use_metadata = not(args.ignore_metadata),
                             max_tokens=max_tokens,
+                            temperature=temperature,
                             provider=provider,
                             model_ref=model_ref ) 
-    except ValueError as e:
+    except (ValueError, RuntimeError) as e:
         print(e)
         return 1
 
