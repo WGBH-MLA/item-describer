@@ -11,6 +11,7 @@ Writes the description to stdout
 import argparse
 import io
 import os
+import sys
 import importlib.metadata
 
 import requests
@@ -171,64 +172,37 @@ def validate_output( raw:str,
 def idescribe( aapbid:str, 
                dtype:str = "description",
                use_metadata:bool = True,
-               verbose:bool = False,
                max_tokens:int = MAX_TOKENS_DEFAULT,
                temperature:float = DEFAULT_TEMPERATURE,
                provider:str = None,
-               model_ref:str = None ) -> str:
+               model_ref:str = None ) -> dict:
     """
     Calls an LLM to generate descriptive metadata for an AAPB item, based
     on the current metadata and the transcript.
 
     As input, takes an AAPB ID. 
 
-    As output, returns an ordered pair:
-      - First item is validated output, which will be `None` if LLM ouput was 
-        not valid.
-      - Second item is the raw LLM output.
+    Returns a dictionary as output
     """
-
-    model_id = ai.get_source_model(provider, model_ref)
-
-    if verbose:
-        print(f"* Model API provider:       {provider}")
-        print(f"* User-specified model ref: {model_ref}")
-        print(f"* Canonical model ID:       {model_id}")
-        print()
-        print(f"* Output metadata type:     {dtype}")
-        print(f"* Maximum output tokens:    {max_tokens}")
-        print(f"* Model temperature:        {temperature}")
-        print()
-
+    
     raw_metadata = get_raw_metadata( aapbid )
 
     if not raw_metadata:
-        print(f"\nCOULD NOT GET ITEM-LEVEL METADATA FOR AAPB ID: {aapbid}")
-        print("\nWILL NOT ATTEMPT DESCRIPTION.\n")
-        valid_output = raw_output = None
-        return valid_output, raw_output
+        raise ValueError(
+            f"COULD NOT GET ITEM-LEVEL METADATA FOR AAPB ID: {aapbid}. "
+            "WILL NOT ATTEMPT DESCRIPTION."
+        )
 
     metadata = massage_metadata( raw_metadata, dtype )
     metadata_str = reformat.format_metadata( metadata )
 
     transcript_url = raw_metadata.get("transcript_url","")
 
-    if verbose:
-        print(f"* PROMPT COMPONENTS: ")
-        for k in ["system_prompt", "user_prompt_instr", "options", "metadata_intro", "transcript_intro"]:
-            print(f"\n* {k}:")
-            print(str(PC[dtype][k]).strip())
-        print(f"\n* AAPB ID: {aapbid}")
-        print("\n* Current metadata used:")
-        print(metadata_str)
-        print("\n* Transcript used:")
-        print(transcript_url)
-
     if not transcript_url.strip():
-        print("\nNO TRANSCRIPT AVAILABLE.")
-        print("\nWILL NOT ATTEMPT DESCRIPTION.\n")
-        valid_output = raw_output = None
-        return valid_output, raw_output
+        raise ValueError(
+            f"NO TRANSCRIPT AVAILABLE FOR AAPB ID: {aapbid}. "
+            "WILL NOT ATTEMPT DESCRIPTION."
+        )
 
     else:
         transcript_text = get_transcript( transcript_url )
@@ -250,18 +224,16 @@ def idescribe( aapbid:str,
 
         valid_output = validate_output( raw_output, dtype )
 
-
-    output_payload = {
+    output = {
         "valid_output": valid_output, 
         "raw_output": raw_output,
-        "model_id": model_id,
+        "model_id": ai.get_source_model(provider, model_ref),
         "metadata_used": metadata_str,
-        "transcript_url_used": transcript_url,
+        "transcript_url": transcript_url,
         "prompt_components": PC[dtype].copy()
     }
 
-    return output_payload
-
+    return output
 
 
 def main():
@@ -306,7 +278,6 @@ def main():
         help="The name of the Azure model deployment or Bedrock model you wish to use.  (If omitted defaults to the provider default.)")        
 
     args = parser.parse_args()
-    print()
 
     # check for valid identifier
     # To do: Add validation
@@ -346,6 +317,8 @@ def main():
             print(f"  ValueError: {e}")
             print(f"Will use default value of {MAX_TOKENS_DEFAULT}.")
             max_tokens = MAX_TOKENS_DEFAULT
+    
+    temperature = DEFAULT_TEMPERATURE
 
     provider = args.provider.strip().lower()
 
@@ -360,29 +333,58 @@ def main():
             print(f"Unknown provider '{provider}'. Supported providers: {', '.join(ai.AVAILABLE_PROVIDERS)}.")
             return 1
 
+    # run the item describer function
+    try: 
+        output = idescribe( aapbid, 
+                            dtype, 
+                            use_metadata = not(args.ignore_metadata),
+                            max_tokens=max_tokens,
+                            provider=provider,
+                            model_ref=model_ref ) 
+    except ValueError as e:
+        print(e)
+        return 1
 
-    output_payload = idescribe( aapbid, 
-                                dtype, 
-                                use_metadata = not(args.ignore_metadata),
-                                verbose=args.verbose,
-                                max_tokens=max_tokens,
-                                provider=provider,
-                                model_ref=model_ref ) 
+    # write output to stdout
+    print()
 
+    # verbose output
     if args.verbose:
-        print("\n*** OUTPUT APPEARS BELOW. ***")
+        print("# ITEM DESCRIBER RUN INFO")
         print()
-    
-    if output_payload["valid_output"]:
-        print(output_payload["valid_output"])
-    elif output_payload["raw_output"]:
+        print(f"* AAPB ID: {aapbid}")
+        print(f"* Model API provider:       {provider}")
+        print(f"* User-specified model ref: {model_ref}")
+        print(f"* Canonical model ID:       {output['model_id']}")
+        print(f"* Output metadata type:     {dtype}")
+        print(f"* Maximum output tokens:    {max_tokens}")
+        print(f"* Model temperature:        {temperature}")
+        print()
+        print(f"# PROMPT COMPONENTS")
+        for k in ["system_prompt", "user_prompt_instr", "options", "metadata_intro", "transcript_intro"]:
+            print(f"\n## {k}:")
+            print(str(PC[dtype][k]).strip())
+
+        print("\n## Current metadata used:")
+        print(output['metadata_used'])
+        print("\n## Transcript used:")
+        print(output['transcript_url'])
+        print()
+        print("# ITEM DESCRIBER RUN OUTPUT")
+        print()
+
+    # substantive output
+    if output["valid_output"]:
+        print(output["valid_output"])
+    elif output["raw_output"]:
         print("MODEL DID NOT PRODUCE VALID OUTPUT.")
         print("RAW MODEL OUTPUT:\n")
-        print(output_payload["raw_output"])
+        print(output["raw_output"])
     else:
         print("MODEL PRODUCED NO OUTPUT.")
     print()
-    
+
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
