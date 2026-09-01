@@ -365,7 +365,8 @@ def main():
     if args.verbose:
         print("# ITEM DESCRIBER RUN INFO")
         print()
-        print(f"* AAPB ID: {aapbid}")
+        print(f"* Item Describer ver:       {__version__}")
+        print(f"* AAPB ID:                  {aapbid}")
         print(f"* Model API provider:       {provider}")
         print(f"* User-specified model ref: {model_ref}")
         print(f"* Canonical model ID:       {output['model_id']}")
