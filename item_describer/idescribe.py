@@ -23,6 +23,7 @@ import gbh_ai_helper as ai
 from . import __version__
 from . import reformat 
 from .prompt_content import pc
+from .reformat import format_options, shuffle_list
 
 
 # Global prompt data structure
@@ -51,6 +52,7 @@ def form_system_prompt ( dtype:str="description" ):
 def form_user_prompt( metadata:str, 
                       transcript:str,
                       dtype:str="description",
+                      shuffle_options:bool=False,
                       use_metadata:bool=True ):
     """
     Formulate the user prompt from metadata and the transcript.
@@ -62,11 +64,13 @@ def form_user_prompt( metadata:str,
 
     p += "\n\n"
 
-    if PC[dtype]["options"]:
+    if PC[dtype]["options-list"]:
+        if not shuffle_options:
+            options_str = format_options(PC[dtype]["options-list"]).strip()
+        else:
+            options_str = format_options(shuffle_list(PC[dtype]["options-list"])).strip()
         p += PC[dtype]["options_intro"].strip()
-        p += "\n"
-        p += PC[dtype]["options_str"].strip()
-        p += "\n\n"
+        p += "\n" + options_str + "\n\n"
 
     if use_metadata:
         p += PC[dtype]["metadata_intro"].strip()
@@ -167,14 +171,14 @@ def validate_output( raw:str,
     if not raw_clean or raw_clean.lower() == 'none':
         return None
 
-    if PC[dtype]["options"]:
+    if PC[dtype]["options-list"]:
         out_list = [ t.strip() for t in raw_clean.split('\n') if t.strip() ]
         if not out_list:
             return None
         for t in out_list:
-            if t not in PC[dtype]["options"]:
+            if t not in PC[dtype]["options-list"]:
                 return None
-        return "\n".join(out_list)
+        return "\n".join(sorted(out_list))
     else:
         return raw_clean
         
@@ -183,6 +187,7 @@ def validate_output( raw:str,
 def idescribe( aapbid:str, 
                dtype:str = "description",
                use_metadata:bool = True,
+               shuffle_options:bool = False,
                max_tokens:int = MAX_TOKENS_DEFAULT,
                temperature:float = DEFAULT_TEMPERATURE,
                provider:str = None,
@@ -221,6 +226,7 @@ def idescribe( aapbid:str,
         user_prompt = form_user_prompt( metadata_str, 
                                         transcript_text, 
                                         dtype,
+                                        shuffle_options=shuffle_options,
                                         use_metadata=use_metadata )
         
         system_prompt = form_system_prompt( dtype )
@@ -250,6 +256,13 @@ def idescribe( aapbid:str,
 def main():
 
     global PC
+
+    valid_types = [
+        "description", 
+        "topics", 
+        "topics-1-5", 
+        "topics-no#",
+        ]
 
     app_desc = f"AAPB Item Describer (version {__version__})\n"
     app_desc += "Generates descriptive metadata for an AAPB item using an LLM.\n\n"
@@ -281,6 +294,8 @@ def main():
         help="The file path to a text file with a custom system prompt")
     parser.add_argument("-i", "--custom-instruction", metavar="INSTR", nargs="?", default=None,
         help="The file path to a text file with custom instructions for the prompt")
+    parser.add_argument("-f", "--shuffle-options", action="store_true",
+        help="For types with options, shuffle the options list before prompting the LLM.")
     parser.add_argument("-z", "--max-tokens", metavar="MAX", nargs="?", default=MAX_TOKENS_DEFAULT,
         help="The maximum number of tokens the LLM should produce as its output")
     parser.add_argument("-p", "--provider", metavar="PROVIDER", nargs="?", default=ai.DEFAULT_PROVIDER,
@@ -299,7 +314,7 @@ def main():
         return 1
 
     if args.type:
-        if args.type in ["description", "topics"]:
+        if args.type in valid_types:
             dtype = args.type
         else:
             print("\nWarning: Invalid type specified.  Run with `-h` for help.")
@@ -350,6 +365,7 @@ def main():
         output = idescribe( aapbid, 
                             dtype, 
                             use_metadata = not(args.ignore_metadata),
+                            shuffle_options = args.shuffle_options,
                             max_tokens=max_tokens,
                             temperature=temperature,
                             provider=provider,
@@ -375,7 +391,7 @@ def main():
         print(f"* Model temperature:        {temperature}")
         print()
         print(f"# PROMPT COMPONENTS")
-        for k in ["system_prompt", "user_prompt_instr", "options", "metadata_intro", "transcript_intro"]:
+        for k in ["system_prompt", "user_prompt_instr", "options-list", "metadata_intro", "transcript_intro"]:
             print(f"\n## {k}:")
             print(str(PC[dtype][k]).strip())
 

@@ -23,14 +23,40 @@ def list_options( raw:str ) -> list:
     return options_list
 
 
-def format_options( raw:str ) -> str:
+def format_options( options_list:list ) -> str:
     """
     Reformats a list of options.
-    Takes a string with one item per line.
+    Takes a list of options.
     Returns a formatted list of options.
     """
-    options_list = list_options( raw ) 
     options_str = ""
     for t in options_list:
         options_str += f'* {t}\n'
     return options_str
+
+
+def shuffle_list( orig:list ) -> list:
+    """
+    Simple, deterministic list shuffling, ensuring significantly
+    different position in list for each item.
+    """
+    opts = orig.copy()
+    opts = swap_adjacents(opts)
+    opts = cut_deck(opts)
+    return opts
+
+def swap_adjacents( orig:list ) -> list:
+    opts = orig.copy()
+    p = (0, 1)
+    while p[1] < len(opts):
+        a = opts[p[0]]
+        opts[p[0]] = opts[p[1]]
+        opts[p[1]] = a
+        p = (p[0]+2, p[1]+2)
+    return opts
+
+def cut_deck( orig:list ) -> list:
+    opts = orig.copy()
+    cut_idx = len(opts) // 2
+    opts = opts[cut_idx:] + opts[0:cut_idx]
+    return opts

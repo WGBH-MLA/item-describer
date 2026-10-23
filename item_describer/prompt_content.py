@@ -46,7 +46,7 @@ Then, after skipping a line, in the second sentence, say what are the main topic
 Optionally, skip a line and add a third sentence, listing any other topics discussed.  
 Beyond that basic description, please do not elaborate further.
 """
-pc["description"]["options"] = None
+pc["description"]["options-list"] = None
 pc["description"]["metadata_intro"] = general_metadata_intro
 pc["description"]["transcript_intro"] = general_transcript_intro
 
@@ -57,22 +57,50 @@ pc["description"]["transcript_intro"] = general_transcript_intro
 #
 from .topics_options import topics_options_str
 
-pc["topics"] = {}
+#
+# topics-1-5
+#
+pc["topics-1-5"] = {}
+pc["topics-1-5"]["options-list"] = list_options(topics_options_str)
 
-pc["topics"]["system_prompt"] = general_system_prompt
-pc["topics"]["user_prompt_instr"] = """
+pc["topics-1-5"]["system_prompt"] = general_system_prompt
+pc["topics-1-5"]["user_prompt_instr"] = """
 Describe this item with one or more topics from the list below.  
 Aim to identify between one and five of the most relevant topics, depending on the diversity of content in the program.
 Without any introduction or explanation, output the topics you selected, with one topic per line.
 If you cannot assign topics to the item, simply output "NONE" and nothing else.
 """
-pc["topics"]["options_intro"] = """
+pc["topics-1-5"]["options_intro"] = """
 Here is a list of topics from which you may select:
 """
-pc["topics"]["options"] = list_options(topics_options_str)
-pc["topics"]["options_str"] = format_options(topics_options_str)
-pc["topics"]["metadata_intro"] = general_metadata_intro
-pc["topics"]["transcript_intro"] = general_transcript_intro
+pc["topics-1-5"]["metadata_intro"] = general_metadata_intro
+pc["topics-1-5"]["transcript_intro"] = general_transcript_intro
 
+
+#
+# topics-no#
+#
+pc["topics-no#"] = {}
+pc["topics-no#"]["options-list"] = list_options(topics_options_str)
+
+pc["topics-no#"]["system_prompt"] = general_system_prompt
+pc["topics-no#"]["user_prompt_instr"] = """
+Describe this item with one or more topics from the list below.  
+Aim to identify the most relevant topics.
+Without any introduction or explanation, output the topics you selected, with one topic per line.
+If you cannot assign topics to the item, simply output "NONE" and nothing else.
+"""
+pc["topics-no#"]["options_intro"] = """
+Here is a list of topics from which you may select:
+"""
+pc["topics-no#"]["metadata_intro"] = general_metadata_intro
+pc["topics-no#"]["transcript_intro"] = general_transcript_intro
+
+
+
+#
+# Define default version of topics
+#
+
+pc["topics"] = pc["topics-no#"]
 ############################################################################
-
