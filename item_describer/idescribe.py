@@ -88,9 +88,15 @@ def form_user_prompt( metadata:str,
 
 def get_raw_metadata( aapbid:str ) -> dict:
 
-    pbcore_url = "https://americanarchive.org/catalog/"
+    # Get the PBCore from the standard user-faceing interface
+    # pbcore_url = "https://americanarchive.org/catalog/"
+    # pbcore_url += aapbid.strip()
+    # pbcore_url += ".pbcore"
+
+    # Get the PBCore from the AAPB API for PBCore
+    pbcore_url = "https://americanarchive.org/api/"
     pbcore_url += aapbid.strip()
-    pbcore_url += ".pbcore"
+    pbcore_url += ".xml"
 
     # get the PBCore XML file
     try:
